@@ -1,17 +1,17 @@
 {
     "domain": "moderated_thermostat",
-    "documentation": "https://github.com/allxone/moderated_thermostat",
-    "issue_tracker": "https://github.com/allxone/moderated_thermostat/issues",
+    "name": "Moderated Thermostat",
     "codeowners": [
         "@allxone"
     ],
-    "name": "Moderated Thermostat",
-    "version": "0.0.1",
     "config_flow": true,
-    "iot_class": "local_polling",
-    "integration_type": "helper",
     "dependencies": [
         "generic_thermostat",
         "moderated_thermostat"
-    ]
+    ],
+    "documentation": "https://github.com/allxone/moderated_thermostat",
+    "integration_type": "helper",
+    "iot_class": "local_polling",
+    "issue_tracker": "https://github.com/allxone/moderated_thermostat/issues",
+    "version": "0.0.1"
 }
