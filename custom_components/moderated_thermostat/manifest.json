@@ -6,8 +6,7 @@
     ],
     "config_flow": true,
     "dependencies": [
-        "generic_thermostat",
-        "moderated_thermostat"
+        "generic_thermostat"
     ],
     "documentation": "https://github.com/allxone/moderated_thermostat",
     "integration_type": "helper",
