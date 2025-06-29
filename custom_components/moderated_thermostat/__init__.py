@@ -1,5 +1,6 @@
 """The generic_thermostat component."""
 
+from homeassistant.components.generic_thermostat.const import CONF_HEATER
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import Event, HomeAssistant
 from homeassistant.helpers import entity_registry as er
@@ -10,7 +11,7 @@ from homeassistant.helpers.device import (
 from homeassistant.helpers.event import async_track_entity_registry_updated_event
 from homeassistant.helpers.helper_integration import async_handle_source_entity_changes
 
-from .const import CONF_HEATER, CONF_SENSOR_HUM, PLATFORMS
+from .const import CONF_SENSOR_HUM, PLATFORMS
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
