@@ -2,30 +2,36 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 
 import voluptuous as vol
-
-
-from homeassistant.components.sensor import DOMAIN as SENSOR_DOMAIN, SensorDeviceClass
-from homeassistant.const import CONF_NAME, PERCENTAGE
+from homeassistant.components.generic_thermostat.config_flow import (
+    CONFIG_SCHEMA as GENERIC_CONFIG_SCHEMA,
+)
+from homeassistant.components.generic_thermostat.config_flow import (
+    OPTIONS_SCHEMA as GENERIC_OPTIONS_SCHEMA,
+)
+from homeassistant.components.generic_thermostat.config_flow import (
+    PRESETS_SCHEMA as GENERIC_PRESETS_SCHEMA,
+)
+from homeassistant.components.sensor import DOMAIN as SENSOR_DOMAIN
+from homeassistant.components.sensor import SensorDeviceClass
+from homeassistant.const import PERCENTAGE
 from homeassistant.helpers import selector
 from homeassistant.helpers.schema_config_entry_flow import (
     SchemaConfigFlowHandler,
     SchemaFlowFormStep,
 )
-from homeassistant.components.generic_thermostat.config_flow import (
-    CONFIG_SCHEMA as GENERIC_CONFIG_SCHEMA,
-    OPTIONS_SCHEMA as GENERIC_OPTIONS_SCHEMA,
-    PRESETS_SCHEMA as GENERIC_PRESETS_SCHEMA,
-)
+
 from .const import (
     CONF_LIMIT_HUM,
     CONF_SENSOR_HUM,
     DEFAULT_LIMIT_HUM,
     DOMAIN,
 )
+
+if TYPE_CHECKING:
+    from collections.abc import Mapping
 
 OPTIONS_SCHEMA = {
     **GENERIC_OPTIONS_SCHEMA,
@@ -34,9 +40,7 @@ OPTIONS_SCHEMA = {
             domain=SENSOR_DOMAIN, device_class=SensorDeviceClass.HUMIDITY
         )
     ),
-    vol.Required(
-        CONF_LIMIT_HUM, default=DEFAULT_LIMIT_HUM
-    ): selector.NumberSelector(
+    vol.Required(CONF_LIMIT_HUM, default=DEFAULT_LIMIT_HUM): selector.NumberSelector(
         selector.NumberSelectorConfig(
             min=0,
             max=100,
@@ -62,6 +66,7 @@ OPTIONS_FLOW = {
     "presets": SchemaFlowFormStep(vol.Schema(GENERIC_PRESETS_SCHEMA)),
 }
 
+
 class ConfigFlowHandler(SchemaConfigFlowHandler, domain=DOMAIN):
     """Handle a config or options flow."""
 
@@ -70,4 +75,4 @@ class ConfigFlowHandler(SchemaConfigFlowHandler, domain=DOMAIN):
 
     def async_config_entry_title(self, options: Mapping[str, Any]) -> str:
         """Return config entry title."""
-        return cast(str, options["name"])
+        return cast("str", options["name"])

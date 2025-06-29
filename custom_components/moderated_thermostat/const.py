@@ -1,6 +1,5 @@
 """Additional constants for the Moderated Thermostat helper."""
 
-from unittest.mock import DEFAULT
 from homeassistant.const import Platform
 
 DOMAIN = "moderated_thermostat"

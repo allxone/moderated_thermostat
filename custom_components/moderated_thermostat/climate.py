@@ -4,18 +4,17 @@ Custom Moderated Thermostat climate platform for Home Assistant.
 Extends the GenericThermostat to moderate temperature based on humidity limits.
 """
 
-from datetime import datetime, timedelta
-from html import entities
 import logging
 import math
-from typing import Any, Iterable
+from datetime import datetime, timedelta
+from typing import Any
+
 from homeassistant.components.climate.const import (
-    HVACMode,
-    PRESET_NONE,
     ATTR_HUMIDITY,
+    PRESET_NONE,
+    HVACMode,
 )
 from homeassistant.components.generic_thermostat.climate import (
-    async_setup_platform as generic_async_setup_platform,
     GenericThermostat,
 )
 from homeassistant.const import (
@@ -30,10 +29,6 @@ from homeassistant.core import (
     State,
     callback,
 )
-from homeassistant.exceptions import ConditionError
-from homeassistant.helpers import condition, config_validation as cv
-from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
 
 _LOGGER = logging.getLogger(__name__)
 DEFAULT_NAME = "Moderated Thermostat"
@@ -134,7 +129,7 @@ class ModeratedThermostat(GenericThermostat):
             ModeratedThermostat._calculate_saturation_vapor_pressure(temp_c)
         )
         # Calculate actual vapor pressure based on current humidity
-        actual_vapor_pressure = saturation_pressure_current * hum_c
+        actual_vapor_pressure = saturation_pressure_current * (hum_c)
         # Calculate saturation vapor pressure for target temperature
         saturation_pressure_target = (
             ModeratedThermostat._calculate_saturation_vapor_pressure(temp_t)
@@ -142,7 +137,8 @@ class ModeratedThermostat(GenericThermostat):
         # Predict relative humidity at target temperature
         predicted_hum = actual_vapor_pressure / saturation_pressure_target
 
-        return min(predicted_hum, 1)  # Ensure predicted humidity is not greater than 1
+        # Ensure predicted humidity is not greater than 1
+        return min(predicted_hum, 1)
 
     async def _async_moderate_temperature(self, step: float = 0.1) -> None:
         """Moderate target temperature based on current humidity and humidity limit."""
@@ -170,8 +166,11 @@ class ModeratedThermostat(GenericThermostat):
         target_temp = self._target_temp - self._cur_moderation
 
         # Predict humidity based on the current temperature, humidity and target temp
-        predicted_hum = ModeratedThermostat._predict_humidity(
-            self._cur_temp, self._cur_hum, target_temp
+        predicted_hum = (
+            ModeratedThermostat._predict_humidity(
+                self._cur_temp, self._cur_hum / 100, target_temp
+            )
+            * 100
         )
 
         # If predicted_hum is within the limit, skip moderation
@@ -189,11 +188,17 @@ class ModeratedThermostat(GenericThermostat):
 
         while abs(moderation_c) < abs(moderation_max):
             # Predict the humidity with the moderated target temperature
-            predicted_hum = self._predict_humidity(
-                self._cur_temp, self._cur_hum, self._target_temp + moderation_c
+            predicted_hum = (
+                self._predict_humidity(
+                    self._cur_temp,
+                    self._cur_hum / 100,
+                    self._target_temp + moderation_c,
+                )
+                * 100
             )
 
-            # If the predicted humidity is within the limit, set the moderation and target humidity
+            # If the predicted humidity is within the limit, set the moderation and
+            # target humidity
             if (self.ac_mode and predicted_hum < self._limit_hum) or (
                 not self.ac_mode and predicted_hum > self._limit_hum
             ):
@@ -205,8 +210,9 @@ class ModeratedThermostat(GenericThermostat):
             # If not, increase the moderation step
             moderation_c += step
 
-        # If we reach here, it means we couldn't moderate the temperature enough to satisfy the humidity limit
-        # (moderation_max force the target temperature to the current temperature)
+        # If we reach here, it means we couldn't moderate the temperature enough to
+        # satisfy the humidity limit (moderation_max force the target temperature to
+        # the current temperature)
         self._target_temp = target_temp + moderation_max
         self._cur_moderation = moderation_max
         self._target_hum = predicted_hum
@@ -265,10 +271,15 @@ class ModeratedThermostat(GenericThermostat):
     @callback
     def _async_update_hum(self, state: State) -> None:
         """Update current humidity with latest state from sensor_hum."""
+
+        def _validate_humidity_state(state: State, cur_hum: float) -> None:
+            if not math.isfinite(cur_hum) or cur_hum < 0 or cur_hum > 1:
+                msg = f"Humidity Sensor has an illegal state {state.state}"
+                raise ValueError(msg)
+
         try:
             cur_hum = float(state.state)
-            if not math.isfinite(cur_hum) or cur_hum < 0 or cur_hum > 1:
-                raise ValueError(f"Humidity Sensor has an illegal state {state.state}")
+            _validate_humidity_state(state, cur_hum)
             self._cur_hum = cur_hum
-        except ValueError as ex:
-            _LOGGER.error("Unable to update from sensor: %s", ex)
+        except ValueError:
+            _LOGGER.exception("Unable to update from sensor: %s")
