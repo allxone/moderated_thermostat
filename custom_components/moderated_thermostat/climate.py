@@ -10,6 +10,7 @@ from collections.abc import Mapping
 from datetime import datetime, timedelta
 from typing import Any
 
+import voluptuous as vol
 from homeassistant.components.climate.const import (
     ATTR_HUMIDITY,
     PRESET_NONE,
@@ -23,6 +24,9 @@ from homeassistant.components.generic_thermostat.climate import (
     CONF_TEMP_STEP,
     GenericThermostat,
 )
+from homeassistant.components.generic_thermostat.climate import (
+    PLATFORM_SCHEMA as GENERIC_PLATFORM_SCHEMA,
+)
 from homeassistant.components.generic_thermostat.const import (
     CONF_AC_MODE,
     CONF_COLD_TOLERANCE,
@@ -34,8 +38,10 @@ from homeassistant.components.generic_thermostat.const import (
     CONF_PRESETS,
     CONF_SENSOR,
 )
+from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import (
     CONF_NAME,
+    CONF_UNIQUE_ID,
     STATE_UNAVAILABLE,
     STATE_UNKNOWN,
     UnitOfTemperature,
@@ -47,6 +53,7 @@ from homeassistant.core import (
     State,
     callback,
 )
+from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.entity_platform import (
     AddConfigEntryEntitiesCallback,
     AddEntitiesCallback,
@@ -54,11 +61,53 @@ from homeassistant.helpers.entity_platform import (
 from homeassistant.helpers.event import (
     async_track_state_change_event,
 )
+from homeassistant.helpers.reload import async_setup_reload_service
+from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType, VolDictType
 
-from .const import CONF_LIMIT_HUM, CONF_SENSOR_HUM
+from .const import CONF_LIMIT_HUM, CONF_SENSOR_HUM, DOMAIN, PLATFORMS
 
 _LOGGER = logging.getLogger(__name__)
 DEFAULT_NAME = "Moderated Thermostat"
+
+PRESETS_SCHEMA: VolDictType = {
+    vol.Optional(v): vol.Coerce(float) for v in CONF_PRESETS.values()
+}
+
+PLATFORM_SCHEMA_COMMON = vol.Schema(
+    {
+        vol.Required(CONF_SENSOR_HUM): cv.entity_id,
+        vol.Optional(CONF_LIMIT_HUM): vol.Coerce(float),
+    }
+)
+
+PLATFORM_SCHEMA = GENERIC_PLATFORM_SCHEMA.extend(PLATFORM_SCHEMA_COMMON.schema)
+
+
+async def async_setup_entry(
+    hass: HomeAssistant,
+    config_entry: ConfigEntry,
+    async_add_entities: AddConfigEntryEntitiesCallback,
+) -> None:
+    """Initialize config entry."""
+    await _async_setup_config(
+        hass,
+        PLATFORM_SCHEMA_COMMON(dict(config_entry.options)),
+        config_entry.entry_id,
+        async_add_entities,
+    )
+
+
+async def async_setup_platform(
+    hass: HomeAssistant,
+    config: ConfigType,
+    async_add_entities: AddEntitiesCallback,
+    discovery_info: DiscoveryInfoType | None = None,  # noqa: ARG001
+) -> None:
+    """Set up the moderated thermostat platform."""
+    await async_setup_reload_service(hass, DOMAIN, PLATFORMS)
+    await _async_setup_config(
+        hass, config, config.get(CONF_UNIQUE_ID), async_add_entities
+    )
 
 
 async def _async_setup_config(
