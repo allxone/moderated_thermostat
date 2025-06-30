@@ -75,7 +75,7 @@ PLATFORM_SCHEMA_COMMON = GENERIC_PLATFORM_SCHEMA_COMMON.extend(
             vol.Required(CONF_SENSOR_HUM): cv.entity_id,
             vol.Optional(CONF_LIMIT_HUM): vol.Coerce(float),
         }
-    )
+    ).schema
 )
 
 PLATFORM_SCHEMA = CLIMATE_PLATFORM_SCHEMA.extend(PLATFORM_SCHEMA_COMMON.schema)
