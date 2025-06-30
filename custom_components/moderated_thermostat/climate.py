@@ -9,6 +9,7 @@ import math
 from collections.abc import Mapping
 from datetime import datetime, timedelta
 from typing import Any
+from xmlrpc.client import boolean
 
 import voluptuous as vol
 from homeassistant.components.climate import (
@@ -282,8 +283,6 @@ class ModeratedThermostat(GenericThermostat):
             or self._hvac_mode == HVACMode.OFF
             or not self._is_device_active
         ):
-            if self._target_temp and self._cur_moderation and self._cur_moderation != 0:
-                self._target_temp -= self._cur_moderation
             self._cur_moderation = 0
             self._target_hum = None
             return
@@ -294,12 +293,11 @@ class ModeratedThermostat(GenericThermostat):
 
         # Derive source target temperature from target temp and current moderation
         self._cur_moderation = self._cur_moderation or 0
-        target_temp = self._target_temp - self._cur_moderation
 
         # Predict humidity based on the current temperature, humidity and target temp
         predicted_hum = (
             ModeratedThermostat._predict_humidity(
-                self._cur_temp, self._cur_hum / 100, target_temp
+                self._cur_temp, self._cur_hum / 100, self._target_temp
             )
             * 100
         )
@@ -308,14 +306,13 @@ class ModeratedThermostat(GenericThermostat):
         if (self.ac_mode and predicted_hum < self._limit_hum) or (
             not self.ac_mode and predicted_hum > self._limit_hum
         ):
-            self._target_temp = target_temp
             self._cur_moderation = 0
             self._target_hum = predicted_hum
             return
 
         # predicted_hum outside the limit, moderate the target temperature
         moderation_c = step
-        moderation_max = target_temp - self._cur_temp
+        moderation_max = self._target_temp - self._cur_temp
 
         while abs(moderation_c) < abs(moderation_max):
             # Predict the humidity with the moderated target temperature
@@ -333,7 +330,6 @@ class ModeratedThermostat(GenericThermostat):
             if (self.ac_mode and predicted_hum < self._limit_hum) or (
                 not self.ac_mode and predicted_hum > self._limit_hum
             ):
-                self._target_temp = target_temp + moderation_c
                 self._cur_moderation = moderation_c
                 self._target_hum = predicted_hum
                 return
@@ -344,7 +340,6 @@ class ModeratedThermostat(GenericThermostat):
         # If we reach here, it means we couldn't moderate the temperature enough to
         # satisfy the humidity limit (moderation_max force the target temperature to
         # the current temperature)
-        self._target_temp = target_temp + moderation_max
         self._cur_moderation = moderation_max
         self._target_hum = predicted_hum
 
@@ -367,18 +362,30 @@ class ModeratedThermostat(GenericThermostat):
 
     @property
     def current_humidity(self) -> float | None:
-        """Return the sensor_hum humidity."""
+        """Return current humidity."""
         return self._cur_hum
 
     @property
     def target_humidity(self) -> float | None:
-        """Return predicted humidity if target temperature is reached."""
+        """Return predicted humidity."""
         return self._target_hum
 
     @property
     def current_moderation(self) -> float | None:
         """Return current humidity moderation applied to the target temperature."""
         return self._cur_moderation
+
+    @property
+    def moderated_temperature(self) -> float | None:
+        """Return current humidity moderation applied to the target temperature."""
+        if self._target_temp is not None:
+            return self._cur_moderation + self._target_temp
+        return None
+
+    @property
+    def moderation_active(self) -> bool:
+        """Return current humidity moderation applied to the target temperature."""
+        return self._cur_moderation != 0
 
     async def async_set_humidity(self, **kwargs: Any) -> None:
         """Set new humidity limit."""
@@ -400,6 +407,22 @@ class ModeratedThermostat(GenericThermostat):
         self._async_update_hum(new_state)
         await self._async_control_heating()
         self.async_write_ha_state()
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Return the state attributes."""
+        attrs = dict(super().extra_state_attributes or {})
+        attrs.update(
+            {
+                "limit_humidity": self.limit_humidity,
+                "current_humidity": self.current_humidity,
+                "target_humidity": self.target_humidity,
+                "moderation_active": self.moderation_active,
+                "moderated_temperature": self.moderated_temperature,
+                "current_moderation": self.current_moderation,
+            }
+        )
+        return attrs
 
     @callback
     def _async_update_hum(self, state: State) -> None:
