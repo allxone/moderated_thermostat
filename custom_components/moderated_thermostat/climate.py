@@ -406,7 +406,7 @@ class ModeratedThermostat(GenericThermostat):
         """Update current humidity with latest state from sensor_hum."""
 
         def _validate_humidity_state(state: State, cur_hum: float) -> None:
-            if not math.isfinite(cur_hum) or cur_hum < 0 or cur_hum > 1:
+            if not math.isfinite(cur_hum) or cur_hum < 0 or cur_hum > 100:
                 msg = f"Humidity Sensor has an illegal state {state.state}"
                 raise ValueError(msg)
 
@@ -415,7 +415,7 @@ class ModeratedThermostat(GenericThermostat):
             _validate_humidity_state(state, cur_hum)
             self._cur_hum = cur_hum
         except ValueError:
-            _LOGGER.exception("Unable to update from sensor: %s")
+            _LOGGER.exception("Unable to update from sensor")
 
     async def async_added_to_hass(self) -> None:
         """Run when entity about to be added."""
