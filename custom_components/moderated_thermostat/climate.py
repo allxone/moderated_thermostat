@@ -26,7 +26,6 @@ from homeassistant.components.generic_thermostat.climate import (
 )
 from homeassistant.components.generic_thermostat.climate import (
     PLATFORM_SCHEMA as GENERIC_PLATFORM_SCHEMA,
-    PRESET_SCHEMA,
 )
 from homeassistant.components.generic_thermostat.const import (
     CONF_AC_MODE,
