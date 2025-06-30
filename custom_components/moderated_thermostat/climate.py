@@ -11,8 +11,9 @@ from datetime import datetime, timedelta
 from typing import Any
 
 import voluptuous as vol
-from homeassistant.components.climate.const import (
+from homeassistant.components.climate import (
     ATTR_HUMIDITY,
+    PLATFORM_SCHEMA as CLIMATE_PLATFORM_SCHEMA,
     PRESET_NONE,
     HVACMode,
 )
