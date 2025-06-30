@@ -9,14 +9,15 @@ import math
 from collections.abc import Mapping
 from datetime import datetime, timedelta
 from typing import Any
-from xmlrpc.client import boolean
 
 import voluptuous as vol
 from homeassistant.components.climate import (
     ATTR_HUMIDITY,
-    PLATFORM_SCHEMA as CLIMATE_PLATFORM_SCHEMA,
     PRESET_NONE,
     HVACMode,
+)
+from homeassistant.components.climate import (
+    PLATFORM_SCHEMA as CLIMATE_PLATFORM_SCHEMA,
 )
 from homeassistant.components.generic_thermostat.climate import (
     CONF_INITIAL_HVAC_MODE,
@@ -64,7 +65,7 @@ from homeassistant.helpers.event import (
     async_track_state_change_event,
 )
 from homeassistant.helpers.reload import async_setup_reload_service
-from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType, VolDictType
+from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
 
 from .const import CONF_LIMIT_HUM, CONF_SENSOR_HUM, DOMAIN, PLATFORMS
 
@@ -203,12 +204,16 @@ class ModeratedThermostat(GenericThermostat):
         unit: UnitOfTemperature,
         unique_id: str | None,
     ) -> None:
-        """Initialize the ModeratedThermostat."""
+        """Initialize the thermostat."""
         self.sensor_hum_entity_id = sensor_hum_entity_id
         self._limit_hum: float | None = limit_hum
         self._cur_hum: float | None = None
         self._target_hum: float | None = None
         self._cur_moderation: float = 0
+
+        # Save original cold tolerance and hot tolerance
+        self._original_cold_tolerance = cold_tolerance
+        self._original_hot_tolerance = hot_tolerance
 
         # Initialize the base class with the heater and sensor entities
         super().__init__(
@@ -261,16 +266,16 @@ class ModeratedThermostat(GenericThermostat):
             ModeratedThermostat._calculate_saturation_vapor_pressure(temp_c)
         )
         # Calculate actual vapor pressure based on current humidity
-        actual_vapor_pressure = saturation_pressure_current * (hum_c)
+        actual_vapor_pressure = saturation_pressure_current * hum_c
         # Calculate saturation vapor pressure for target temperature
         saturation_pressure_target = (
             ModeratedThermostat._calculate_saturation_vapor_pressure(temp_t)
         )
         # Predict relative humidity at target temperature
-        predicted_hum = actual_vapor_pressure / saturation_pressure_target
+        predicted_hum = round(actual_vapor_pressure / saturation_pressure_target, 3)
 
         # Ensure predicted humidity is not greater than 1
-        return min(predicted_hum, 1)
+        return min(predicted_hum, 1.0)
 
     async def _async_moderate_temperature(self, step: float = 0.1) -> None:
         """Moderate target temperature based on current humidity and humidity limit."""
@@ -285,6 +290,8 @@ class ModeratedThermostat(GenericThermostat):
         ):
             self._cur_moderation = 0
             self._target_hum = None
+            self._hot_tolerance = self._original_hot_tolerance
+            self._cold_tolerance = self._original_cold_tolerance
             return
 
         # Decrease target temperature for heating mode
@@ -293,6 +300,22 @@ class ModeratedThermostat(GenericThermostat):
 
         # Derive source target temperature from target temp and current moderation
         self._cur_moderation = self._cur_moderation or 0
+        moderation_c = step
+        moderation_max = self._cur_temp - self._target_temp
+
+        # Check if current humidity is within the limit
+        if (self.ac_mode and self._cur_hum > self._limit_hum) or (
+            not self.ac_mode and self._cur_hum < self._limit_hum
+        ):
+            self._cur_moderation = moderation_max
+            self._target_hum = self._cur_hum
+            self._hot_tolerance = self._original_hot_tolerance + (
+                self._cur_moderation if not self.ac_mode else 0
+            )
+            self._cold_tolerance = self._original_cold_tolerance - (
+                self._cur_moderation if self.ac_mode else 0
+            )
+            return
 
         # Predict humidity based on the current temperature, humidity and target temp
         predicted_hum = (
@@ -308,11 +331,9 @@ class ModeratedThermostat(GenericThermostat):
         ):
             self._cur_moderation = 0
             self._target_hum = predicted_hum
+            self._hot_tolerance = self._original_hot_tolerance
+            self._cold_tolerance = self._original_cold_tolerance
             return
-
-        # predicted_hum outside the limit, moderate the target temperature
-        moderation_c = step
-        moderation_max = self._target_temp - self._cur_temp
 
         while abs(moderation_c) < abs(moderation_max):
             # Predict the humidity with the moderated target temperature
@@ -332,6 +353,12 @@ class ModeratedThermostat(GenericThermostat):
             ):
                 self._cur_moderation = moderation_c
                 self._target_hum = predicted_hum
+                self._hot_tolerance = self._original_hot_tolerance + (
+                    self._cur_moderation if not self.ac_mode else 0
+                )
+                self._cold_tolerance = self._original_cold_tolerance - (
+                    self._cur_moderation if self.ac_mode else 0
+                )
                 return
 
             # If not, increase the moderation step
@@ -342,6 +369,12 @@ class ModeratedThermostat(GenericThermostat):
         # the current temperature)
         self._cur_moderation = moderation_max
         self._target_hum = predicted_hum
+        self._hot_tolerance = self._original_hot_tolerance + (
+            self._cur_moderation if not self.ac_mode else 0
+        )
+        self._cold_tolerance = self._original_cold_tolerance - (
+            self._cur_moderation if self.ac_mode else 0
+        )
 
     async def _async_control_heating(
         self,
