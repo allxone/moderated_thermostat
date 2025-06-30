@@ -25,7 +25,7 @@ from homeassistant.components.generic_thermostat.climate import (
     GenericThermostat,
 )
 from homeassistant.components.generic_thermostat.climate import (
-    PLATFORM_SCHEMA as GENERIC_PLATFORM_SCHEMA,
+    PLATFORM_SCHEMA_COMMON as GENERIC_PLATFORM_SCHEMA_COMMON,
 )
 from homeassistant.components.generic_thermostat.const import (
     CONF_AC_MODE,
@@ -69,7 +69,7 @@ from .const import CONF_LIMIT_HUM, CONF_SENSOR_HUM, DOMAIN, PLATFORMS
 _LOGGER = logging.getLogger(__name__)
 DEFAULT_NAME = "Moderated Thermostat"
 
-PLATFORM_SCHEMA_COMMON = GENERIC_PLATFORM_SCHEMA.extend(
+PLATFORM_SCHEMA_COMMON = GENERIC_PLATFORM_SCHEMA_COMMON.extend(
     vol.Schema(
         {
             vol.Required(CONF_SENSOR_HUM): cv.entity_id,
